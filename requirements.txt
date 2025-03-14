@@ -1,5 +1,2 @@
-pytgcalls==3.0.0.dev6
-tgcalls==3.0.0.dev2  # Fixed conflict by using compatible version
 pyrogram
 tgcrypto
-pymongo[srv]
