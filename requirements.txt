@@ -1,6 +1,5 @@
 pyrogram
+tgcrypto
 pytgcalls
 motor
-pymongo
-asyncio
-python-dotenv
+aiohttp
