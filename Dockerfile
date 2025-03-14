@@ -1,15 +1,15 @@
-FROM python:3.10
+# Use a lightweight Python image
+FROM python:3.10-slim
 
+# Set working directory
 WORKDIR /app
 
+# Copy all project files
 COPY . /app
 
-RUN pip install --upgrade pip setuptools wheel
-
-# Install tgcalls first to avoid conflicts
-RUN pip install tgcalls==2.0.0
-
-# Install all other dependencies
+# Install dependencies
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+# Start the bot
 CMD ["python", "bot.py"]
