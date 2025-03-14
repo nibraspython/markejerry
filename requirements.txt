@@ -1,5 +1,6 @@
 pyrogram
 tgcrypto
-pytgcalls
+pytgcalls==0.0.24
+tgcalls==0.0.16
 motor
 aiohttp
