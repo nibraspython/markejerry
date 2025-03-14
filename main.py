@@ -2,9 +2,9 @@ import os
 from pyrogram import Client, filters
 
 # Load environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
+API_ID = int(os.getenv("API_ID", "28152382"))
+API_HASH = os.getenv("API_HASH", "c5a9a284a66ebc8c5ee56f72f18c9b53")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7685121222:AAG_4j0pq-_8IQGz-Aaqs1WKBuJjzzgvaG8")
 
 # Initialize the bot
 app = Client("renamer_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
