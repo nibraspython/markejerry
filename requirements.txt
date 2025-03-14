@@ -1,6 +1,5 @@
-pytgcalls==2.1.0
-tgcalls==2.0.0
-pymongo[srv]
+pytgcalls==3.0.0.dev6
+tgcalls==3.0.0.dev6
 pyrogram
 tgcrypto
-python-dotenv
+pymongo[srv]
