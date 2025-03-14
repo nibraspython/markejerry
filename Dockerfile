@@ -1,20 +1,15 @@
-# Use official Python image
 FROM python:3.10
 
-# Set working directory
 WORKDIR /app
 
-# Copy project files
 COPY . /app
 
-# Upgrade pip and install dependencies
-RUN pip install --upgrade pip wheel setuptools  
+RUN pip install --upgrade pip setuptools wheel
 
-# Install tgcalls first to avoid dependency conflicts
-RUN pip install tgcalls>=3.0.0.dev5
+# Install tgcalls first to avoid conflicts
+RUN pip install tgcalls==2.0.0
 
-# Install all dependencies
-RUN pip install -r requirements.txt  
+# Install all other dependencies
+RUN pip install -r requirements.txt
 
-# Run bot
 CMD ["python", "bot.py"]
