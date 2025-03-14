@@ -1,6 +1,7 @@
 pyrogram
 tgcrypto
-pytgcalls==0.0.24
-tgcalls==0.0.16
+pymongo[srv]
 motor
 aiohttp
+pytgcalls>=2.1.0
+tgcalls>=3.0.0.dev5
