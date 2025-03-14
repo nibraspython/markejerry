@@ -1,7 +1,6 @@
+pytgcalls==2.1.0
+tgcalls==2.0.0
+pymongo[srv]
 pyrogram
 tgcrypto
-pymongo[srv]
-motor
-aiohttp
-pytgcalls>=2.1.0
-tgcalls>=3.0.0.dev5
+python-dotenv
