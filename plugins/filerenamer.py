@@ -1,51 +1,163 @@
 from pyrogram import Client, filters
-import os
-import time
-import asyncio
+from pyrogram.enums import MessageMediaType
+from pyrogram.errors import FloodWait
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
+from hachoir.metadata import extractMetadata
+from hachoir.parser import createParser
+from helper.utils import progress_for_pyrogram, convert, humanbytes
+from helper.database import db
+from asyncio import sleep
+from PIL import Image
+import os, time
 
-# Progress Bar Function
-async def progress_bar(current, total, message):
-    percent = (current / total) * 100
-    progress = "▓" * int(percent // 5) + "░" * (20 - int(percent // 5))
-    speed = current / (time.time() - message.start_time + 1)
-    eta = (total - current) / speed if speed > 0 else 0
+# ✅ Step 1: Ask for a new file name
+@Client.on_message(filters.private & (filters.document | filters.audio | filters.video))
+async def rename_handler(client, message):
+    file = getattr(message, message.media.value)
+    filename = file.file_name  
 
-    progress_text = f"""
-<b>
-╭━━━━❰ ᴘʀᴏɢʀᴇss ʙᴀʀ ❱━➣
-┣⪼ 📂 Sɪᴢᴇ: {total / 1024:.2f} KB
-┣⪼ ⏳ Dᴏɴᴇ: {percent:.2f}%
-┣⪼ 🚀 Sᴩᴇᴇᴅ: {speed / 1024:.2f} KB/s
-┣⪼ ⏰ Eᴛᴀ: {eta:.2f} s
-┣⪼ [{progress}]
-╰━━━━━━━━━━━━━━━➣
-</b>"""
+    # ✅ File size limit check (2GB)
+    if file.file_size > 2000 * 1024 * 1024:
+        return await message.reply_text("❌ This bot does not support files larger than 2GB.")
 
-    await message.edit(progress_text)
+    # ✅ Send a Force Reply message to get new filename
+    try:
+        await message.reply_text(
+            text=f"**📂 Old Filename:** `{filename}`\n\n✏️ Send me the new file name (without extension).",
+            reply_to_message_id=message.id,  
+            reply_markup=ForceReply(True)
+        )       
+    except FloodWait as e:
+        await sleep(e.value)
+        await message.reply_text(
+            text=f"**📂 Old Filename:** `{filename}`\n\n✏️ Send me the new file name (without extension).",
+            reply_to_message_id=message.id,  
+            reply_markup=ForceReply(True)
+        )
+    except:
+        pass
 
+# ✅ Step 2: Capture the user’s response & show rename options
+async def force_reply_filter(_, client, message):
+    if (message.reply_to_message.reply_markup) and isinstance(message.reply_to_message.reply_markup, ForceReply):
+        return True 
+    return False 
 
-# File Rename Handler
-@Client.on_message(filters.document | filters.video | filters.audio)
-async def ask_new_filename(client, message):
-    file_name = message.document.file_name if message.document else message.video.file_name if message.video else message.audio.file_name
-    sent_msg = await message.reply_text(f"📁 Old File Name: `{file_name}`\n\n✏️ Send me the new file name (without extension).")
+@Client.on_message(filters.private & filters.reply & filters.create(force_reply_filter))
+async def rename_selection(client, message):
+    reply_message = message.reply_to_message
+
+    new_name = message.text.strip()
+    await message.delete()  # ✅ Delete user input
+    msg = await client.get_messages(message.chat.id, reply_message.id)
+    file = msg.reply_to_message
+    media = getattr(file, file.media.value)
+
+    # ✅ Auto-detect file extension if not provided
+    if "." not in new_name:
+        extn = media.file_name.rsplit('.', 1)[-1] if "." in media.file_name else "mkv"
+        new_name = new_name + "." + extn
+
+    await reply_message.delete()
+
+    # ✅ Show output file type selection
+    button = [[InlineKeyboardButton("📁 Document", callback_data="upload_document")]]
+    if file.media in [MessageMediaType.VIDEO, MessageMediaType.DOCUMENT]:
+        button.append([InlineKeyboardButton("🎥 Video", callback_data="upload_video")])
+    elif file.media == MessageMediaType.AUDIO:
+        button.append([InlineKeyboardButton("🎵 Audio", callback_data="upload_audio")])
+    
+    await message.reply(
+        text=f"**✅ File renamed to:** `{new_name}`\n\nChoose output format:",
+        reply_to_message_id=file.id,
+        reply_markup=InlineKeyboardMarkup(button)
+    )
+
+# ✅ Step 3: Download, rename, and upload file
+@Client.on_callback_query(filters.regex("upload"))
+async def rename_callback(bot, query): 
+    user_id = query.from_user.id
+    file_name = query.message.text.split("`")[1]
+    file_path = f"downloads/{user_id}{time.time()}/{file_name}"
+    file = query.message.reply_to_message
+
+    sts = await query.message.edit("📥 Downloading file...")    
+    try:
+        path = await file.download(file_name=file_path, progress=progress_for_pyrogram, progress_args=("Downloading...", sts, time.time()))                    
+    except Exception as e:
+        return await sts.edit(f"❌ Error: {e}")
+    
+    # ✅ Get file metadata
+    duration = 0
+    try:
+        metadata = extractMetadata(createParser(file_path))
+        if metadata.has("duration"): duration = metadata.get('duration').seconds
+    except:
+        pass
+
+    ph_path = None
+    media = getattr(file, file.media.value)
+    db_caption = await db.get_caption(user_id)
+    db_thumb = await db.get_thumbnail(user_id)
+
+    # ✅ Set custom caption
+    if db_caption:
+        try:
+            caption = db_caption.format(filename=file_name, filesize=humanbytes(media.file_size), duration=convert(duration))
+        except KeyError:
+            caption = f"**{file_name}**"
+    else:
+        caption = f"**{file_name}**"
+
+    # ✅ Generate thumbnail
+    if media.thumbs or db_thumb:
+        ph_path = await bot.download_media(db_thumb if db_thumb else media.thumbs[0].file_id)
+        Image.open(ph_path).convert("RGB").save(ph_path)
+        img = Image.open(ph_path)
+        img.resize((320, 320))
+        img.save(ph_path, "JPEG")
+
+    await sts.edit("📤 Uploading file...")
+    file_type = query.data.split("_")[1]
 
     try:
-        # Wait for the user to send a new filename
-        response = await client.listen(filters.text & filters.private, timeout=60)
-        new_name = response.text.strip()
-        file_ext = os.path.splitext(file_name)[1]
-        new_filename = new_name + file_ext
-
-        # Start downloading the file
-        file_path = await message.download(progress=progress_bar, progress_args=(sent_msg,))
-        new_path = file_path.replace(file_name, new_filename)
-        os.rename(file_path, new_path)
-
-        # Send the renamed file
-        await message.reply_document(new_path, caption=f"✅ Renamed to `{new_filename}`")
-        os.remove(new_path)
-
-    except asyncio.TimeoutError:
-        await message.reply_text("❌ You took too long to respond. Try again!")
-
+        if file_type == "document":
+            await sts.reply_document(
+                document=file_path,
+                thumb=ph_path, 
+                caption=caption, 
+                progress=progress_for_pyrogram,
+                progress_args=("Uploading...", sts, time.time())
+            )
+        elif file_type == "video": 
+            await sts.reply_video(
+                video=file_path,
+                caption=caption,
+                thumb=ph_path,
+                duration=duration,
+                progress=progress_for_pyrogram,
+                progress_args=("Uploading...", sts, time.time())
+            )
+        elif file_type == "audio": 
+            await sts.reply_audio(
+                audio=file_path,
+                caption=caption,
+                thumb=ph_path,
+                duration=duration,
+                progress=progress_for_pyrogram,
+                progress_args=("Uploading...", sts, time.time())
+            )
+    except Exception as e:          
+        try: 
+            os.remove(file_path)
+            os.remove(ph_path)
+            return await sts.edit(f"❌ Upload error: {e}")
+        except:
+            pass
+        
+    try: 
+        os.remove(file_path)
+        os.remove(ph_path)
+        await sts.delete()
+    except:
+        pass
