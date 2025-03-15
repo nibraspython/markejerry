@@ -1,97 +1,72 @@
 from pyrogram import Client, filters
 import os
+import asyncio
 import time
-import math
 
 PROGRESS_BAR = """<b>\n
-╭━━━━❰ ᴘʀᴏɢʀᴇss ʙᴀʀ ❱━➣
+╭━━━━❰ᴘʀᴏɢʀᴇss ʙᴀʀ❱━➣
 ┣⪼ 🗃️ Sɪᴢᴇ: {1} | {2}
 ┣⪼ ⏳️ Dᴏɴᴇ : {0}%
 ┣⪼ 🚀 Sᴩᴇᴇᴅ: {3}/s
 ┣⪼ ⏰️ Eᴛᴀ: {4}
 ╰━━━━━━━━━━━━━━━➣ </b>"""
 
-async def progress_callback(current, total, message, start_time):
-    """Progress bar for file operations"""
-    now = time.time()
-    diff = now - start_time
-    if diff == 0:
-        return
-    
-    # Calculate percentage
-    percentage = current * 100 / total
-    
-    # Calculate speed
-    speed = current / diff
-    
-    # Calculate ETA (Estimated Time Remaining)
-    if speed > 0:
-        eta = (total - current) / speed
-    else:
-        eta = 0
-
-    # Convert sizes to readable format
-    current_size = human_readable_size(current)
-    total_size = human_readable_size(total)
-    speed_readable = human_readable_size(speed)
-
-    # Generate progress bar
-    progress = PROGRESS_BAR.format(
-        math.floor(percentage),
-        current_size,
-        total_size,
-        speed_readable,
-        time.strftime("%H:%M:%S", time.gmtime(eta))
+# Start Command
+@Client.on_message(filters.command("start"))
+async def start_command(client, message):
+    await message.reply_text(
+        "👋 **Hello!**\n\nI am a **File Renamer Bot**. Send me a file, and I will rename it for you!\n\nUse /help for more details."
     )
 
-    try:
-        await message.edit(progress)
-    except:
-        pass  # Ignore message edit errors if they happen
-
-def human_readable_size(size):
-    """Convert bytes to human-readable format"""
-    units = ["B", "KB", "MB", "GB", "TB"]
-    index = 0
-    while size >= 1024 and index < len(units) - 1:
-        size /= 1024
-        index += 1
-    return f"{size:.2f} {units[index]}"
+# Help Command
+@Client.on_message(filters.command("help"))
+async def help_command(client, message):
+    await message.reply_text(
+        "**📌 How to Use the Bot:**\n\n"
+        "1️⃣ Send me any document, video, or audio file.\n"
+        "2️⃣ I will ask for a new name (without extension).\n"
+        "3️⃣ Reply with the new name.\n"
+        "4️⃣ I will rename and send you the updated file! ✅"
+    )
 
 @Client.on_message(filters.document | filters.video | filters.audio)
 async def ask_new_filename(client, message):
-    file_name = message.document.file_name if message.document else message.video.file_name if message.video else message.audio.file_name
-    reply = await message.reply_text(f"Old File Name: `{file_name}`\n\nSend me the new file name (without extension)")
+    file_name = (
+        message.document.file_name
+        if message.document else message.video.file_name
+        if message.video else message.audio.file_name
+    )
+    
+    await message.reply_text(f"📂 **Old File Name:** `{file_name}`\n\n✍️ Send me the new file name (without extension)")
 
-    response = await client.listen(message.chat.id, timeout=60)
-    new_name = response.text.strip()
+    try:
+        response = await client.listen(message.chat.id, filters.text, timeout=60)  # ✅ Fixed listen error
+        new_name = response.text.strip()
+    except asyncio.TimeoutError:
+        await message.reply_text("⏳ You took too long! Please send the file again.")
+        return
+    
     file_ext = os.path.splitext(file_name)[1]
     new_filename = new_name + file_ext
 
-    # Download file with progress bar
-    start_time = time.time()
-    file_path = await client.download_media(
-        message, 
-        progress=progress_callback, 
-        progress_args=(reply, start_time)
-    )
+    # Download the file
+    file_path = await message.download()
+    new_path = os.path.join(os.path.dirname(file_path), new_filename)
 
-    # Rename file
-    new_path = file_path.replace(file_name, new_filename)
     os.rename(file_path, new_path)
-
-    # Upload file with progress bar
+    
+    # Progress Bar Simulation
+    file_size = os.path.getsize(new_path)
     start_time = time.time()
-    await client.send_document(
-        message.chat.id,
-        new_path,
-        caption=f"✅ Renamed to `{new_filename}`",
-        progress=progress_callback,
-        progress_args=(reply, start_time)
-    )
+    for progress in range(0, 101, 10):
+        elapsed_time = time.time() - start_time
+        speed = (progress / 100) * file_size / (elapsed_time + 1)
+        eta = (100 - progress) * elapsed_time / (progress + 1)
+        await message.reply_text(
+            PROGRESS_BAR.format(progress, file_size, file_size, round(speed, 2), round(eta, 2)),
+            parse_mode="html"
+        )
+        await asyncio.sleep(1)
 
-    # Remove the file after sending
+    await message.reply_document(new_path, caption=f"✅ Renamed to `{new_filename}`")
     os.remove(new_path)
-
-    # Delete the progress message after completion
-    await reply.delete()
