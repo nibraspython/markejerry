@@ -12,8 +12,7 @@ class Database:
         return dict(
             _id=int(id),                                   
             file_id=None,
-            caption=None,
-            saved_file=None  # ✅ Added field for saved file
+            caption=None
         )
 
     async def add_user(self, b, m):
@@ -51,19 +50,5 @@ class Database:
     async def get_caption(self, id):
         user = await self.col.find_one({'_id': int(id)})
         return user.get('caption', None)
-
-    # ✅ Added functions to save & retrieve renamed files
-    async def save_file(self, user_id, file_name, file_id):
-        """Save renamed file details to the database"""
-        await self.col.update_one(
-            {"_id": int(user_id)},
-            {"$set": {"saved_file": {"file_name": file_name, "file_id": file_id}}},
-            upsert=True
-        )
-
-    async def get_file(self, user_id):
-        """Retrieve file details for the user"""
-        user = await self.col.find_one({"_id": int(user_id)})
-        return user.get("saved_file", None) if user else None
 
 db = Database(Config.DB_URL, Config.DB_NAME)
