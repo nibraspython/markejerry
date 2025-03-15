@@ -14,7 +14,7 @@ class Bot(Client):
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
             workers=min(32, os.cpu_count() + 4),
-            plugins={"root": "plugins"},
+            plugins={"root": "plugins"},  # ✅ Ensure the "plugins" folder is used
             sleep_threshold=15,
             max_concurrent_transmissions=Config.MAX_CONCURRENT_TRANSMISSIONS,
         )
@@ -27,21 +27,18 @@ class Bot(Client):
         self.uptime = Config.BOT_UPTIME     
         
         if Config.WEB_SUPPORT:
-            app = web.AppRunner(web.Application(client_max_size=30000000))
-            await app.setup()
-            await web.TCPSite(app, "0.0.0.0", 8080).start()
-        
+            app = web.Application(client_max_size=30000000)
+            app.add_routes([web.get("/", self.web_status)])  # ✅ Added a simple route
+            runner = web.AppRunner(app)
+            await runner.setup()
+            port = int(os.getenv("PORT", 8080))  # ✅ Added PORT environment variable
+            await web.TCPSite(runner, "0.0.0.0", port).start()
+
         print(f"\033[1;96m @{me.username} Sᴛᴀʀᴛᴇᴅ......⚡️⚡️⚡️\033[0m")
         try: [await self.send_message(id, f"**__{me.first_name}  Iꜱ Sᴛᴀʀᴛᴇᴅ.....✨️__**") for id in Config.ADMIN]                               
         except: pass
-        
-        if Config.LOG_CHANNEL:
-            try:
-                curr = datetime.now(timezone("Asia/Kolkata"))
-                date = curr.strftime('%d %B, %Y')
-                time = curr.strftime('%I:%M:%S %p')
-                await self.send_message(Config.LOG_CHANNEL, f"**__{me.mention} Iꜱ Rᴇsᴛᴀʀᴛᴇᴅ !!**\n\n📅 Dᴀᴛᴇ : `{date}`\n⏰ Tɪᴍᴇ : `{time}`\n🌐 Tɪᴍᴇᴢᴏɴᴇ : `Asia/Kolkata`\n\n🉐 Vᴇʀsɪᴏɴ : `v{__version__} (Layer {layer})`</b>")                                
-            except:
-                print("Pʟᴇᴀꜱᴇ Mᴀᴋᴇ Tʜɪꜱ Iꜱ Aᴅᴍɪɴ Iɴ Yᴏᴜʀ Lᴏɢ Cʜᴀɴɴᴇʟ")
+
+    async def web_status(self, request):
+        return web.Response(text="Bot is Running")
 
 Bot().run()
