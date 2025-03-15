@@ -6,6 +6,6 @@ class Config:
     BOT_TOKEN = os.getenv("BOT_TOKEN")
     ADMIN = [int(i) for i in os.getenv("ADMIN", "").split() if i.isdigit()]
     LOG_CHANNEL = int(os.getenv("LOG_CHANNEL")) if os.getenv("LOG_CHANNEL") else None
-    WEB_SUPPORT = bool(os.getenv("WEB_SUPPORT", true))
+    WEB_SUPPORT = bool(os.getenv("WEB_SUPPORT", "False") == "True")  # Fixed the error
     MAX_CONCURRENT_TRANSMISSIONS = 5
     BOT_UPTIME = "Bot is running..."
