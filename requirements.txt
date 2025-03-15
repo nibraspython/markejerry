@@ -1,3 +1,6 @@
-pyrogram
-tgcrypto
-asyncio
+pyrogram==2.0.106
+tgcrypto==1.2.5
+aiohttp==3.8.4
+pytz==2024.1
+python-dotenv==1.0.1
+asyncio==3.4.3
