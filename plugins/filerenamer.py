@@ -4,21 +4,21 @@ import asyncio
 import time
 
 PROGRESS_BAR = """<b>\n
-╭━━━━❰ᴘʀᴏɢʀᴇss ʙᴀʀ❱━➣
+╭━━━━❰ ᴘʀᴏɢʀᴇss ʙᴀʀ ❱━➣
 ┣⪼ 🗃️ Sɪᴢᴇ: {1} | {2}
 ┣⪼ ⏳️ Dᴏɴᴇ : {0}%
 ┣⪼ 🚀 Sᴩᴇᴇᴅ: {3}/s
 ┣⪼ ⏰️ Eᴛᴀ: {4}
 ╰━━━━━━━━━━━━━━━➣ </b>"""
 
-# Start Command
+# ✅ Start Command
 @Client.on_message(filters.command("start"))
 async def start_command(client, message):
     await message.reply_text(
         "👋 **Hello!**\n\nI am a **File Renamer Bot**. Send me a file, and I will rename it for you!\n\nUse /help for more details."
     )
 
-# Help Command
+# ✅ Help Command
 @Client.on_message(filters.command("help"))
 async def help_command(client, message):
     await message.reply_text(
@@ -37,36 +37,42 @@ async def ask_new_filename(client, message):
         if message.video else message.audio.file_name
     )
     
-    await message.reply_text(f"📂 **Old File Name:** `{file_name}`\n\n✍️ Send me the new file name (without extension)")
+    # ✅ Automatically replying to the same message
+    reply_msg = await message.reply_text(
+        f"📂 **Old File Name:** `{file_name}`\n\n✍️ Send me the new file name (without extension)",
+        reply_to_message_id=message.id
+    )
 
     try:
-        response = await client.listen(message.chat.id, filters.text, timeout=60)  # ✅ Fixed listen error
+        # ✅ Using `wait_for_message` instead of `listen`
+        response = await client.wait_for_message(message.chat.id, filters.text, timeout=60)
         new_name = response.text.strip()
     except asyncio.TimeoutError:
-        await message.reply_text("⏳ You took too long! Please send the file again.")
+        await reply_msg.edit_text("⏳ You took too long! Please send the file again.")
         return
     
     file_ext = os.path.splitext(file_name)[1]
     new_filename = new_name + file_ext
 
-    # Download the file
+    # ✅ Download the file
     file_path = await message.download()
     new_path = os.path.join(os.path.dirname(file_path), new_filename)
 
     os.rename(file_path, new_path)
     
-    # Progress Bar Simulation
+    # ✅ Progress Bar Simulation
     file_size = os.path.getsize(new_path)
     start_time = time.time()
+    
     for progress in range(0, 101, 10):
         elapsed_time = time.time() - start_time
         speed = (progress / 100) * file_size / (elapsed_time + 1)
         eta = (100 - progress) * elapsed_time / (progress + 1)
-        await message.reply_text(
+        await reply_msg.edit_text(
             PROGRESS_BAR.format(progress, file_size, file_size, round(speed, 2), round(eta, 2)),
             parse_mode="html"
         )
         await asyncio.sleep(1)
 
-    await message.reply_document(new_path, caption=f"✅ Renamed to `{new_filename}`")
+    await message.reply_document(new_path, caption=f"✅ Renamed to `{new_filename}`", reply_to_message_id=message.id)
     os.remove(new_path)
