@@ -1,58 +1,47 @@
-from pyrogram import Client, filters
+from datetime import datetime
+from pytz import timezone
+from pyrogram import Client, __version__
+from pyrogram.raw.all import layer
+from aiohttp import web
 import os
-import shutil
-from flask import Flask
-import threading
+from config import Config
 
-# Bot Configuration
-API_ID = "your_api_id"
-API_HASH = "your_api_hash"
-BOT_TOKEN = "your_bot_token"
-ADMIN_ID = "6292143807" # Replace with your Telegram ID
+class Bot(Client):
+    def __init__(self):
+        super().__init__(
+            name="renamer",
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH,
+            bot_token=Config.BOT_TOKEN,
+            workers=min(32, os.cpu_count() + 4),
+            plugins={"root": "plugins"},
+            sleep_threshold=15,
+            max_concurrent_transmissions=Config.MAX_CONCURRENT_TRANSMISSIONS,
+        )
 
-# Initialize bot
-app = Client("renamer_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-# Flask Web Server (Keeps Render Alive)
-web_app = Flask(__name__)
-
-@web_app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_web():
-    web_app.run(host='0.0.0.0', port=8080)
-
-# Send Alive Message to Admin
-@app.on_message(filters.command("start"))
-def start(client, message):
-    message.reply_text("Send me a file to rename.")
-    if message.from_user.id == ADMIN_ID:
-        client.send_message(ADMIN_ID, "✅ Bot is Online and Running!")
-
-@app.on_message(filters.document | filters.video | filters.audio)
-def get_new_filename(client, message):
-    try:
-        file_path = app.download_media(message)
-        if not file_path:
-            message.reply_text("❌ Failed to download the file.")
-            return
+    async def start(self):
+        await super().start()
+        me = await self.get_me()
+        self.mention = me.mention
+        self.username = me.username  
+        self.uptime = Config.BOT_UPTIME     
         
-        new_name = "renamed_" + os.path.basename(file_path)
-        new_path = os.path.join(os.path.dirname(file_path), new_name)
+        if Config.WEB_SUPPORT:
+            app = web.AppRunner(web.Application(client_max_size=30000000))
+            await app.setup()
+            await web.TCPSite(app, "0.0.0.0", 8080).start()
         
-        if os.path.exists(file_path):
-            os.rename(file_path, new_path)
-            message.reply_document(new_path, caption="✅ File Renamed Successfully!")
-            os.remove(new_path)
-        else:
-            message.reply_text("❌ File not found after download. Try again.")
-    except Exception as e:
-        message.reply_text(f"❌ Error: {str(e)}")
+        print(f"\033[1;96m @{me.username} Sᴛᴀʀᴛᴇᴅ......⚡️⚡️⚡️\033[0m")
+        try: [await self.send_message(id, f"**__{me.first_name}  Iꜱ Sᴛᴀʀᴛᴇᴅ.....✨️__**") for id in Config.ADMIN]                               
+        except: pass
+        
+        if Config.LOG_CHANNEL:
+            try:
+                curr = datetime.now(timezone("Asia/Kolkata"))
+                date = curr.strftime('%d %B, %Y')
+                time = curr.strftime('%I:%M:%S %p')
+                await self.send_message(Config.LOG_CHANNEL, f"**__{me.mention} Iꜱ Rᴇsᴛᴀʀᴛᴇᴅ !!**\n\n📅 Dᴀᴛᴇ : `{date}`\n⏰ Tɪᴍᴇ : `{time}`\n🌐 Tɪᴍᴇᴢᴏɴᴇ : `Asia/Kolkata`\n\n🉐 Vᴇʀsɪᴏɴ : `v{__version__} (Layer {layer})`</b>")                                
+            except:
+                print("Pʟᴇᴀꜱᴇ Mᴀᴋᴇ Tʜɪꜱ Iꜱ Aᴅᴍɪɴ Iɴ Yᴏᴜʀ Lᴏɢ Cʜᴀɴɴᴇʟ")
 
-# Start Flask in a separate thread
-t = threading.Thread(target=run_web)
-t.start()
-
-# Run the bot
-app.run()
+Bot().run()
