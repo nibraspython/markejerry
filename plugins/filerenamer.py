@@ -61,11 +61,11 @@ async def rename_selection(client, message):
     await reply_message.delete()
 
     # ✅ Show output file type selection
-    button = [[InlineKeyboardButton("📁 Document", callback_data="upload_document")]]
+    button = [[InlineKeyboardButton("📁 Document", callback_data=f"upload_document_{new_name}")]]
     if file.media in [MessageMediaType.VIDEO, MessageMediaType.DOCUMENT]:
-        button.append([InlineKeyboardButton("🎥 Video", callback_data="upload_video")])
+        button.append([InlineKeyboardButton("🎥 Video", callback_data=f"upload_video_{new_name}")])
     elif file.media == MessageMediaType.AUDIO:
-        button.append([InlineKeyboardButton("🎵 Audio", callback_data="upload_audio")])
+        button.append([InlineKeyboardButton("🎵 Audio", callback_data=f"upload_audio_{new_name}")])
     
     await message.reply(
         text=f"**✅ File renamed to:** `{new_name}`\n\nChoose output format:",
@@ -74,12 +74,15 @@ async def rename_selection(client, message):
     )
 
 # ✅ Step 3: Download, rename, and upload file
-@Client.on_callback_query(filters.regex("upload"))
+@Client.on_callback_query(filters.regex("upload_"))
 async def rename_callback(bot, query): 
     user_id = query.from_user.id
-    file_name = query.message.text.split("`")[1]
-    file_path = f"downloads/{user_id}{time.time()}/{file_name}"
+    callback_data = query.data.split("_", 2)  # Fixing index out of range issue
+    file_type = callback_data[1]
+    file_name = callback_data[2]
+
     file = query.message.reply_to_message
+    file_path = f"downloads/{user_id}_{int(time.time())}/{file_name}"
 
     sts = await query.message.edit("📥 Downloading file...")    
     try:
@@ -118,7 +121,6 @@ async def rename_callback(bot, query):
         img.save(ph_path, "JPEG")
 
     await sts.edit("📤 Uploading file...")
-    file_type = query.data.split("_")[1]
 
     try:
         if file_type == "document":
@@ -150,14 +152,14 @@ async def rename_callback(bot, query):
     except Exception as e:          
         try: 
             os.remove(file_path)
-            os.remove(ph_path)
+            if ph_path: os.remove(ph_path)
             return await sts.edit(f"❌ Upload error: {e}")
         except:
             pass
         
     try: 
         os.remove(file_path)
-        os.remove(ph_path)
+        if ph_path: os.remove(ph_path)
         await sts.delete()
     except:
-        pass
+        pass  
