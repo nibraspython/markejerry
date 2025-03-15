@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 import os
 import asyncio
 import time
+from pyroask import Ask  # ✅ Import PyroAsk
 
 PROGRESS_BAR = """<b>\n
 ╭━━━━❰ ᴘʀᴏɢʀᴇss ʙᴀʀ ❱━➣
@@ -36,7 +37,7 @@ async def ask_new_filename(client, message):
         if message.document else message.video.file_name
         if message.video else message.audio.file_name
     )
-    
+
     # ✅ Automatically replying to the same message
     reply_msg = await message.reply_text(
         f"📂 **Old File Name:** `{file_name}`\n\n✍️ Send me the new file name (without extension)",
@@ -44,8 +45,9 @@ async def ask_new_filename(client, message):
     )
 
     try:
-        # ✅ Using `wait_for_message` instead of `listen`
-        response = await client.wait_for_message(message.chat.id, filters.text, timeout=60)
+        # ✅ Using PyroAsk for user input
+        ask = Ask(client)
+        response = await ask.question(message.chat.id, "Send new file name:", timeout=60)
         new_name = response.text.strip()
     except asyncio.TimeoutError:
         await reply_msg.edit_text("⏳ You took too long! Please send the file again.")
