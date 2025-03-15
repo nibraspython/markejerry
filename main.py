@@ -1,33 +1,61 @@
 import os
+import logging
+from flask import Flask
 from pyrogram import Client, filters
+from pyrogram.types import Message
 
 # Load environment variables
-API_ID = int(os.getenv("API_ID", "28152382"))
-API_HASH = os.getenv("API_HASH", "c5a9a284a66ebc8c5ee56f72f18c9b53")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7685121222:AAG_4j0pq-_8IQGz-Aaqs1WKBuJjzzgvaG8")
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
-# Initialize the bot
-app = Client("renamer_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Initialize Flask for Render & UptimeRobot
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot is running!"
 
-# Start command
-@app.on_message(filters.command("start"))
-async def start(client, message):
-    await message.reply_text("Hello! Send me a file, and I'll rename it for you.")
+# Initialize Pyrogram bot
+bot = Client("file_renamer_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# File renaming
-@app.on_message(filters.document | filters.video | filters.audio)
-async def rename_file(client, message):
-    file = message.document or message.video or message.audio
-    await message.reply_text("Send me the new filename (without extension).")
+# Send "I'm alive" message on startup
+@bot.on_message(filters.command("start") & filters.user(ADMIN_ID))
+def start(_, message: Message):
+    message.reply_text("✅ Bot is running and ready to rename files!")
 
-    @app.on_message(filters.text & filters.reply)
-    async def get_new_filename(client, msg):
-        new_name = msg.text + os.path.splitext(file.file_name)[1]
-        file_path = await message.download()
-        new_file_path = os.path.join(os.path.dirname(file_path), new_name)
-        os.rename(file_path, new_file_path)
+# Handle file uploads
+@bot.on_message(filters.document | filters.video | filters.audio)
+def file_received(client, message: Message):
+    message.reply_text("📌 Send me the new filename (without extension).")
+    bot.set_parse_mode("Markdown")
+    bot.set_chat_action(message.chat.id, "typing")
+    client.listen(message.chat.id, rename_file, filters.text & filters.user(message.from_user.id), timeout=60)
 
-        await message.reply_document(new_file_path, caption="Here is your renamed file!")
-        os.remove(new_file_path)  # Clean up after sending
+# Rename and send the file
+async def rename_file(client, message: Message):
+    new_filename = message.text.strip()
+    if not new_filename:
+        await message.reply_text("❌ Filename cannot be empty!")
+        return
+    
+    received_file = message.reply_to_message.document or message.reply_to_message.video or message.reply_to_message.audio
+    file_ext = os.path.splitext(received_file.file_name)[1]
+    new_file_name = f"{new_filename}{file_ext}"
+    
+    sent_msg = await message.reply_text("🔄 Renaming file...")
+    downloaded_path = await client.download_media(received_file)
+    os.rename(downloaded_path, new_file_name)
+    
+    await client.send_document(
+        chat_id=message.chat.id,
+        document=new_file_name,
+        caption=f"✅ File renamed to: {new_file_name}"
+    )
+    
+    await sent_msg.delete()
+    os.remove(new_file_name)
 
-app.run()
+if __name__ == "__main__":
+    bot.start()
+    app.run(host="0.0.0.0", port=8080)
