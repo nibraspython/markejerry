@@ -4,6 +4,8 @@ class Config:
     API_ID = int(os.getenv("API_ID"))
     API_HASH = os.getenv("API_HASH")
     BOT_TOKEN = os.getenv("BOT_TOKEN")
+     DB_NAME = os.environ.get("DB_NAME","oggyapi")     
+    DB_URL  = os.environ.get("DB_URL","mongodb+srv://oggyapi:oggyapi123@data-oggy.drp1w.mongodb.net/?retryWrites=true&w=majority&appName=Data-Oggy")
     ADMIN = [int(i) for i in os.getenv("ADMIN", "").split() if i.isdigit()]
     LOG_CHANNEL = int(os.getenv("LOG_CHANNEL")) if os.getenv("LOG_CHANNEL") else None
     WEB_SUPPORT = bool(os.getenv("WEB_SUPPORT", "False") == "True")  # Fixed the error
